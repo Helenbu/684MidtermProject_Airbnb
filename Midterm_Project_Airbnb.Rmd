@@ -1,0 +1,167 @@
+---
+title: "Airbnb Project"
+author: "Helen Zhou"
+date: "11/26/2017"
+output: pdf_document
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggthemes)
+library(ggplot2)
+require(gridExtra)
+library(lme4)
+```
+
+## Midterm Project_Airbnb
+
+This project is designed to display data analysis based on Inside Airbnb data set from http://insideairbnb.com/get-the-data.html. Datas contain two cities: Boston and New York City. For each city, I use property listing data.
+
+The model I built is mainly focused on the price prediction. 
+
+The major procedure can be summarized as below:
+1. Data Reading and Preparation
+2. EDA
+4. Multi-level linear model 
+5. Reference and appendix 
+
+```{r echo=FALSE }
+# Data from Boston
+bos_list <- read.csv("listingsBOS.csv") 
+bos_list_sum <- read.csv("listings_sumBOS.csv")
+#bos_review <- read.csv("reviewsBOS.csv")
+# Data from New York City
+nyc_list <- read.csv("listingsNYC.csv") 
+nyc_list_sum <- read.csv("listings_sumNYC.csv")
+#nyc_review <- read.csv("reviewsNYC.csv")
+```
+
+```{r echo=FALSE }
+# Data preparation
+# Bos_list_sum is a simplified version of Bos_list, and I added some info from bos_list to bos_list_sum and use the later one for the analysis
+bos_list[,c("listing_url","scrape_id","last_scraped","space","description","experiences_offered","neighborhood_overview","notes",
+            "transit","access","interaction","house_rules","thumbnail_url","medium_url","picture_url",
+            "xl_picture_url","host_id","host_url","host_thumbnail_url","host_picture_url", "host_listings_count",
+            "neighbourhood_group_cleansed","require_guest_profile_picture","require_guest_phone_verification" )] <- list(NULL)
+#bos_list <- bos_list[complete.cases(bos_list), ]
+#drop unneccesary columns 
+nyc_list[,c("listing_url","scrape_id","last_scraped","space","description","experiences_offered","neighborhood_overview","notes",
+            "transit","access","interaction","house_rules","thumbnail_url","medium_url","picture_url",
+            "xl_picture_url","host_id","host_url","host_thumbnail_url","host_picture_url", "host_listings_count",
+            "neighbourhood_group_cleansed","require_guest_profile_picture","require_guest_phone_verification" )] <- list(NULL)
+#nyc_list <- nyc_list[complete.cases(nyc_list), ]
+```
+
+# EDA and second round data cleaning
+
+To find out people's experience with Airbnb in one city, we first need to know what are the options there 
+
+```{r echo=FALSE }
+#distribution of property type - BOS
+library(plyr)
+y <- count(bos_list, 'property_type')
+p <- ggplot(y, aes(x=reorder(property_type,-freq),y = freq, fill = factor(property_type))) 
+p + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in Boston") + labs(x="Property Type",y="Count")
+#distribution of property type- NYC
+y <- count(nyc_list, 'property_type')
+p <- ggplot(y, aes(x=reorder(property_type,-freq),y = freq, fill = factor(property_type))) 
+p + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in NYC") + labs(x="Property Type",y="Count") 
+detach(package:plyr)
+```
+
+```{r echo=FALSE }
+#distribution of room type - BOS
+p <- ggplot(data=bos_list, aes(x=factor(1), fill = factor(room_type)),) + geom_bar(width = 1)
+pp1 <- p + coord_polar(theta = "y") + ggtitle("Room Type Distribution in Boston") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=15))
+#distribution of room type - NYC
+p <- ggplot(data=nyc_list, aes(x=factor(1), fill = factor(room_type)),) + geom_bar(width = 1)
+pp2 <- p + coord_polar(theta = "y") + ggtitle("Room Type Distribution in NYC") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=15))
+grid.arrange(pp1, pp2, ncol=2)
+```
+
+```{r warning=FALSE, message=FALSE,echo=FALSE }
+#distribution of neighborhood - BOS
+library(ggmap)
+df <- (data.frame(
+  x = bos_list$latitude,
+  y = bos_list$longitude,
+  Type = bos_list$room_type
+))
+ppp1 <- qmplot(y, x, data = df, colour = Type, size = I(0.1), darken = 0) + ggtitle("Property Distribution in Boston")
+
+#get_map(location = c(lon = df$y, lat = df$x), zoom = "auto", scale = "auto", maptype = "roadmap", source = "google", force = ifelse(source == "google", TRUE, TRUE), messaging = FALSE, urlonly = FALSE, filename = "ggmapTemp", crop = TRUE, color = c("color", "bw"), language = "en-EN", api_key)
+
+#distribution of neighborhood - NYC
+df <- (data.frame(
+  x = nyc_list$latitude,
+  y = nyc_list$longitude,
+  Type = nyc_list$room_type
+))
+ppp2 <- qmplot(y, x, data = df, colour = Type, size = I(0.1), darken = 0) + ggtitle("Property Distribution in NYC")
+grid.arrange(ppp1, ppp2, ncol=2)
+```
+
+```{r warning=FALSE, message=FALSE,echo=FALSE }
+#wordcloud - BOS
+library(tm)
+library(SnowballC)
+library(wordcloud)
+bos_sum <- read.csv("listings_sumBOS.csv", stringsAsFactors = FALSE)
+bosCorpus <- Corpus(VectorSource(bos_sum$name))
+bosCorpus <- tm_map(bosCorpus, PlainTextDocument)
+bosCorpus <- tm_map(bosCorpus, removePunctuation)
+bosCorpus <- tm_map(bosCorpus, removeWords, stopwords('english'))
+bosCorpus <- tm_map(bosCorpus, stemDocument)
+bosCorpus <- tm_map(bosCorpus, removeNumbers)
+bosCorpus <- tm_map(bosCorpus, stripWhitespace)
+bosCorpus <- tm_map(bosCorpus, tolower)
+bosCorpus <- tm_map(bosCorpus, removeWords, "bedroom")
+bosCorpus <- tm_map(bosCorpus, removeWords, "room")
+wordcloud(bosCorpus, max.words = 100, random.order = FALSE,colors = brewer.pal(9,"Reds"))
+#layout(matrix(c(1,1,2,3), 2, 2, byrow = TRUE))
+#wordcloud - NYC
+nyc_sum <- read.csv("listings_sumNYC.csv", stringsAsFactors = FALSE)
+nycCorpus <- Corpus(VectorSource(nyc_sum$name))
+nycCorpus <- tm_map(nycCorpus, PlainTextDocument)
+nycCorpus <- tm_map(nycCorpus, removePunctuation)
+nycCorpus <- tm_map(nycCorpus, removeWords, stopwords('english'))
+nycCorpus <- tm_map(nycCorpus, stemDocument)
+nycCorpus <- tm_map(nycCorpus, removeNumbers)
+nycCorpus <- tm_map(nycCorpus, stripWhitespace)
+nycCorpus <- tm_map(nycCorpus, tolower)
+nycCorpus <- tm_map(nycCorpus, removeWords, "bedroom")
+nycCorpus <- tm_map(nycCorpus, removeWords, "room")
+wordcloud(nycCorpus, max.words = 100, random.order = FALSE,colors = brewer.pal(9,"Blues"))
+
+```
+
+```{r eval=FALSE}
+# distribution of price - BOS
+qplot(bos_list$price,geom="histogram",binwidth = 0.5,  main = "Histogram for Price in Boston", xlab = "Price",  fill=I("blue"), col=I("red"), alpha=I(.2),stat = "count")
+p + coord_polar(theta = "y")
+# distribution of price - NYC
+```
+
+# Model and model visualization
+
+I fit a multi-level model for each city. 
+
+$$y_i^{price} = \mu + \gamma_{1}^{room type} + \delta^{neighbourhood}  + e_i$$
+
+```{r}
+# Multi-level model
+# Boston 
+m1 <- lmer(formula = price ~ 1 + (1 | room_type) + (1 | neighbourhood), data = bos_list_sum)
+# New York 
+m2 <- lmer(formula = price ~ 1 + (1 | room_type) + (1 | neighbourhood), data = nyc_list_sum)
+```
+
+```{r echo=FALSE }
+# residual plot 
+a1 <- plot(m1, main = "residual plot Boston")
+a2 <- plot(m2, main = "residual plot NYC")
+grid.arrange(a1, a2, ncol=2)
+```
+
+
+
