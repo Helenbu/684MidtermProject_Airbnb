@@ -1,0 +1,227 @@
+---
+title: "Airbnb Project"
+author: "Helen Zhou"
+date: "11/26/2017"
+output: pdf_document
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggthemes)
+library(ggplot2)
+library(gridExtra)
+library(Matrix)
+library(base)
+library(lme4)
+library(lubridate)
+library(knitr)
+library(grid)
+library(plyr)
+library(NLP)
+library(RColorBrewer)
+```
+
+## Midterm Project_Airbnb
+
+# Introduction
+
+This project is designed to display data analysis based on Inside Airbnb data set from http://insideairbnb.com/get-the-data.html. Datas contain two cities: Boston and New York City. For each city, I used property listing data. 
+
+The project is focused on the difference of properties between two cities. Taking from there, we can see some potential market strategies to promote offers from each city, from company's perspective; or we can see the bargain strategies when we as guests to choose stayover places when we visit the cities.
+
+The major procedure can be summarized as below: 
+1. Explorary Data Analysis and Visualization
+2. Multi-level linear model on price prediction
+3. Model Checking
+4. Reference and appendix 
+
+Due to time limit, the project is only able to explore some aspects. The analysis has limitations on such as safety control, walk score and social interaction between landlords and guests. Feel free to contact me if you have any suggestions! 
+
+## Data Overview
+
+After data cleaning, Boston has 3925 properties on the list and New York City has 33938 properties on the list. The total 36 variables contain property information, host information and hosting rules. 
+
+For the outcome variable, I define the price by creating new variable, the price per person, which equals sum of price and cleaning fee divided by guests_included. $$Price\,per\,person = \dfrac{(Price + Cleaning\,fee) }{Guests\,included} $$ 
+
+```{r echo=FALSE }
+# Data from Boston
+bos_list <- read.csv("listingsBOS.csv")  # property list of Boston
+bos_list_sum <- read.csv("listings_sumBOS.csv") # brief list for wordcloud use
+#bos_review <- read.csv("reviewsBOS.csv")
+# Data from New York City
+nyc_list <- read.csv("listingsNYC.csv")  # property list of NYC
+nyc_list_sum <- read.csv("listings_sumNYC.csv")  # brief list for wordcloud use
+#nyc_review <- read.csv("reviewsNYC.csv")
+```
+
+```{r echo=FALSE }
+# Data preparation
+# select variables
+list <- c("name","host_name","host_since","host_response_time","host_response_rate","host_acceptance_rate","host_is_superhost","neighbourhood","city","state","zipcode","market","country_code","latitude","longitude","property_type","room_type","accommodates", "bathrooms","bedrooms","beds","price","security_deposit","cleaning_fee","guests_included","extra_people","minimum_nights","maximum_nights","number_of_reviews","review_scores_rating","review_scores_accuracy","instant_bookable","is_business_travel_ready","cancellation_policy","calculated_host_listings_count","reviews_per_month")
+bos_list <- bos_list[list]
+nyc_list <- nyc_list[list]
+bos_list <- bos_list[complete.cases(bos_list), ]
+#drop unneccesary columns 
+bos_list <- bos_list[complete.cases(bos_list), ]
+nyc_list <- nyc_list[complete.cases(nyc_list), ]
+# from price definition, I can create a new price varible by 
+bos_list$priceperperson <- (as.numeric(bos_list$price) + as.numeric(bos_list$cleaning_fee))/as.numeric(bos_list$guests_included)
+nyc_list$priceperperson <- (as.numeric(nyc_list$price) + as.numeric(nyc_list$cleaning_fee))/as.numeric(nyc_list$guests_included)
+```
+
+# Explorary Data Analysis and Visualization
+
+To find out people's experience with Airbnb in one city, we first need to know what are the options there. Things showed below are somethings I think are important to take a look at. 
+
+```{r echo=FALSE, warning=FALSE}
+#distribution of property type - BOS
+y1 <- count(bos_list, 'property_type')
+p1 <- ggplot(y1, aes(x=reorder(property_type,-freq),y = freq, fill = factor(property_type))) 
+p1 + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in Boston") + labs(x="Property Type",y="Count")
+#distribution of property type- NYC
+y2 <- count(nyc_list, 'property_type')
+p2 <- ggplot(y2, aes(x=reorder(property_type,-freq),y = freq, fill = factor(property_type))) 
+p2 + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in NYC") + labs(x="Property Type",y="Count") 
+```
+From Figure 1 we can see, Boston has.... New York has...
+
+```{r echo=FALSE}
+#distribution of room type - BOS
+p <- ggplot(data=bos_list, aes(x=factor(1), fill = factor(room_type))) + geom_bar(width = 1)
+pp1 <- p + coord_polar(theta = "y") + ggtitle("Room Type Distribution in Boston") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
+#distribution of room type - NYC
+p <- ggplot(data=nyc_list, aes(x=factor(1), fill = factor(room_type))) + geom_bar(width = 1)
+pp2 <- p + coord_polar(theta = "y") + ggtitle("Room Type Distribution in NYC") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
+grid.arrange(pp1, pp2, ncol=2)
+```
+From Figure ...
+
+```{r warning=FALSE, message=FALSE,echo=FALSE }
+#distribution of neighborhood - BOS
+library(ggmap)
+df <- (data.frame(
+  x = bos_list$latitude,
+  y = bos_list$longitude,
+  Type = bos_list$room_type
+))
+ppp1 <- qmplot(y, x, data = df, colour = Type, size = I(0.1), darken = 0) + ggtitle("Property Distribution in Boston")
+#distribution of neighborhood - NYC
+df <- (data.frame(
+  x = nyc_list$latitude,
+  y = nyc_list$longitude,
+  Type = nyc_list$room_type
+))
+ppp2 <- qmplot(y, x, data = df, colour = Type, size = I(0.1), darken = 0) + ggtitle("Property Distribution in NYC")
+grid.arrange(ppp1, ppp2, ncol=2)
+```
+
+```{r warning=FALSE, message=FALSE,echo=FALSE }
+#wordcloud - BOS
+library(tm)
+library(SnowballC)
+library(wordcloud)
+bos_sum <- read.csv("listings_sumBOS.csv", stringsAsFactors = FALSE)
+bosCorpus <- Corpus(VectorSource(bos_sum$name))
+bosCorpus <- tm_map(bosCorpus, PlainTextDocument)
+bosCorpus <- tm_map(bosCorpus, removePunctuation)
+bosCorpus <- tm_map(bosCorpus, removeWords, stopwords('english'))
+bosCorpus <- tm_map(bosCorpus, stemDocument)
+bosCorpus <- tm_map(bosCorpus, removeNumbers)
+bosCorpus <- tm_map(bosCorpus, stripWhitespace)
+bosCorpus <- tm_map(bosCorpus, tolower)
+bosCorpus <- tm_map(bosCorpus, removeWords, "bedroom")
+bosCorpus <- tm_map(bosCorpus, removeWords, "room")
+wordcloud(bosCorpus, max.words = 100, random.order = FALSE,colors = brewer.pal(9,"Reds"))
+#layout(matrix(c(1,1,2,3), 2, 2, byrow = TRUE))
+#wordcloud - NYC
+nyc_sum <- read.csv("listings_sumNYC.csv", stringsAsFactors = FALSE)
+nycCorpus <- Corpus(VectorSource(nyc_sum$name))
+nycCorpus <- tm_map(nycCorpus, PlainTextDocument)
+nycCorpus <- tm_map(nycCorpus, removePunctuation)
+nycCorpus <- tm_map(nycCorpus, removeWords, stopwords('english'))
+nycCorpus <- tm_map(nycCorpus, stemDocument)
+nycCorpus <- tm_map(nycCorpus, removeNumbers)
+nycCorpus <- tm_map(nycCorpus, stripWhitespace)
+nycCorpus <- tm_map(nycCorpus, tolower)
+nycCorpus <- tm_map(nycCorpus, removeWords, "bedroom")
+nycCorpus <- tm_map(nycCorpus, removeWords, "room")
+wordcloud(nycCorpus, max.words = 100, random.order = FALSE,colors = brewer.pal(9,"Blues"))
+```
+The most frequent words described in Boston are ..., which shows ....
+But in New York, ... are more frequently mentioned. 
+```{r echo = FALSE}
+options(tz="America/New_York")
+# First Host Year Distribution in Boston
+hostyearBOS <- year(bos_list$host_since)
+y1 <- table(hostyearBOS)
+y1 <- as.data.frame(y1)
+names(y1)[1] <- "Year"
+names(y1)[2] <- "Count"
+kable(y1,caption = "First Host Year Distribution in Boston by May 12 2017")
+# First Host Year Distribution in New York
+hostyearNYC <- year(as.Date(nyc_list$host_since))
+y2 <- table(hostyearNYC)
+y2 <- as.data.frame(y2)
+names(y2)[1] <- "Year"
+names(y2)[2] <- "Count"
+kable(y2,caption = "First Host Year Distribution in New York by May 12 2017")
+```
+
+```{r echo=FALSE}
+# super-host percentage - BOS
+a <- table(bos_list$host_is_superhost)
+a <- as.data.frame(a)
+a$Freq <- round(a$Freq/sum(a$Freq),2)
+names(a)[1] <- "Super Host?"
+names(a)[2] <- "Percentage"
+kable(a, caption = "Super Host Percentage in Boston")
+# super-host percentage - NYC
+b <- table(nyc_list$host_is_superhost)
+b <- as.data.frame(b) 
+b[1, 1] = NA
+b$Freq <- round(b$Freq/sum(b$Freq),2)
+names(b)[1] <- "Super Host?"
+names(b)[2] <- "Percentage"
+kable(b, caption = "Super Host Percentage in New York")
+```
+
+
+```{r eval=FALSE}
+# distribution of price - BOS
+a1 <- aggregate( priceperperson ~ property_type, bos_list, mean )
+kable(a1, caption = "Average Price of Property Type in Boston")
+a2 <- aggregate( priceperperson ~ room_type, bos_list, mean )
+a2 <- as.data.frame(a2)
+a3 <- ggplot(a2,aes(room_type,priceperperson),fill = factor(room_type)) + geom_bar(stat = "identity") + ggtitle("Average Price of Room Type in Boston") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
+# distribution of price - NYC
+b1 <- aggregate( priceperperson ~ property_type, nyc_list, mean )
+kable(b1, caption = "Average Price of Property Type in New York")
+b2 <- aggregate( priceperperson ~ room_type, nyc_list, mean )
+b2 <- as.data.frame(b2)
+b3 <- ggplot(b2,aes(room_type,priceperperson),fill = factor(room_type)) + geom_bar(stat = "identity") + ggtitle("Average Price of Room Type in NYC") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
+grid.arrange(a3,b3, ncol=2)
+```
+
+# Model and model visualization
+
+I fit a multi-level model for each city. 
+
+$$y_i^{price} = \mu + \gamma_{1}^{room type} + \delta^{neighbourhood}  + e_i$$
+
+```{r}
+# Multi-level model
+# Boston 
+m1 <- lmer(formula = price ~ 1 + (1 | room_type) + (1 | neighbourhood), data = bos_list_sum)
+# New York 
+m2 <- lmer(formula = price ~ 1 + (1 | room_type) + (1 | neighbourhood), data = nyc_list_sum)
+```
+
+```{r echo=FALSE }
+# residual plot 
+a1 <- plot(m1, main = "residual plot Boston")
+a2 <- plot(m2, main = "residual plot NYC")
+grid.arrange(a1, a2, ncol=2)
+```
+
+
+
