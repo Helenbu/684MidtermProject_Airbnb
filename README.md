@@ -1,21 +1,31 @@
 ## Midterm Project_Airbnb
 
-# Introduction
+# Background 
+Airbnb is a company who provides hospitality service for people who want to lease or rent short-term staying. It grows rapidly, with founded in 2008 and 20 billion dollars market value by 2015. At the same time, it also provides people a new lifestyle to be able to temporarily share properties and gain income. 
+In this Data Challenge project, I am interested in price prediction and price difference in Boston and New York City. I use datasets from Inside Airbnb: http://insideairbnb.com/get-the-data.html. It contains property information and review information of all listed properties in Airbnb by date(in this case, May 12 2017). For this project, I will only choose property information from the two cities.
 
-This project is designed to display data analysis based on Inside Airbnb data set from http://insideairbnb.com/get-the-data.html. Datas contain two cities: Boston and New York City. For each city, I used property listing data. 
+# Study Objectives
+The outcome is price per night per person (sum of nightly price and cleaning fee divided by guests included). Derived from price prediction, I will have a bargain list of place with relatively cheaper price and high reviews. 
 
-The project is focused on the difference of properties between two cities. Taking from there, we can see some potential market strategies to promote offers from each city, from company's perspective; or we can see the bargain strategies when we as guests to choose stayover places when we visit the cities.
 
-The major procedure can be summarized as below: 
-1. Explorary Data Analysis and Visualization
-2. Multi-level linear model on price prediction
-3. Model Checking
-4. Reference and appendix 
+Design and Methods
+1.     Study design: 
+		 -  Explorary Data Analysis
+     -	Word frequency: count word use in the room name(description) 
+     -	Map: map cluster of the properties geographically.
+     -	Multi Level Linear Analysis: Linear analysis on price outcome.
+2.     Data source: Airbnb data collection.  
+3.     Population/Sample: The population of interest is all property owners of Airbnb. 
 
-Due to time limit, the project is only able to explore some aspects. The analysis has limitations on such as safety control, walk score and social interaction between landlords and guests. Feel free to contact me if you have any suggestions! 
+Analyses
+1.     Descriptive statistics
+	i.	EDA of distributions of Room Types, Property Types, 
+	ii.	Table of price range among different citie
+2.     Multivariable analysis
+             i. 	Dependent variable: Overall Satisfaction
+             ii. 	List the independent variables: Number of reviews, number of bedrooms and bathrooms, price, room type, city.
+3.     Hypothesis testing
+	i. Significant difference of price among difference cities 
 
-## Data Overview
+Study Limitations
 
-After data cleaning, Boston has 3925 properties on the list and New York City has 33938 properties on the list. The total 36 variables contain property information, host information and hosting rules. 
-
-For the outcome variable, I define the price by creating new variable, the price per person, which equals sum of price and cleaning fee divided by guests_included. $$Price\,per\,person = \dfrac{(Price + Cleaning\,fee) }{Guests\,included} $$ 
