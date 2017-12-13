@@ -9,9 +9,9 @@ The outcome is price per night per person (sum of nightly price and cleaning fee
 
 
 Design and Methods
-1.     Study design: 
-		 -  Explorary Data Analysis
-     -	Word frequency: count word use in the room name(description) 
+1.Study design: 
+- Explorary Data Analysis
+- Word frequency: count word use in the room name(description) 
      -	Map: map cluster of the properties geographically.
      -	Multi Level Linear Analysis: Linear analysis on price outcome.
 2.     Data source: Airbnb data collection.  
