@@ -8,24 +8,24 @@ In this Data Challenge project, I am interested in price prediction and price di
 The outcome is price per night per person (sum of nightly price and cleaning fee divided by guests included). Derived from price prediction, I will have a bargain list of place with relatively cheaper price and high reviews. 
 
 
-Design and Methods
+# Design and Methods
 1.Study design: 
 - Explorary Data Analysis
 - Word frequency: count word use in the room name(description) 
-     -	Map: map cluster of the properties geographically.
-     -	Multi Level Linear Analysis: Linear analysis on price outcome.
-2.     Data source: Airbnb data collection.  
-3.     Population/Sample: The population of interest is all property owners of Airbnb. 
+- Map: map cluster of the properties geographically.
+- Multi Level Linear Analysis: Linear analysis on price outcome.
+2.Data source: Airbnb data collection.  
+3.Population/Sample: The population of interest is all property owners of Airbnb. 
 
-Analyses
-1.     Descriptive statistics
-	i.	EDA of distributions of Room Types, Property Types, 
-	ii.	Table of price range among different citie
-2.     Multivariable analysis
-             i. 	Dependent variable: Overall Satisfaction
-             ii. 	List the independent variables: Number of reviews, number of bedrooms and bathrooms, price, room type, city.
-3.     Hypothesis testing
-	i. Significant difference of price among difference cities 
+# Analyses
+1.Descriptive statistics
+- EDA of distributions of Room Types, Property Types, 
+- Table of price range among different citie
+2.Multivariable analysis
+- Dependent variable: Overall Satisfaction
+- List the independent variables: Number of reviews, number of bedrooms and bathrooms, price, room type, city.
+3.Hypothesis testing
+- Significant difference of price among difference cities 
 
-Study Limitations
+# Study Limitations
 
