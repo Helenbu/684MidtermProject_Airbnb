@@ -33,3 +33,5 @@ The outcome is price per night per person (sum of nightly price and cleaning fee
 
 # Study Limitations
 
+1.Safety reasons not included
+2.Reasons such as convenience and popularity behind locations 
