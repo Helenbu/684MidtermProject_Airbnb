@@ -2,7 +2,8 @@
 title: "Airbnb Project"
 author: "Helen Zhou"
 date: "11/26/2017"
-output: pdf_document
+output:
+  pdf_document
 ---
 
 ```{r setup, echo=FALSE, message=FALSE}
@@ -19,6 +20,8 @@ library(grid)
 library(plyr)
 library(NLP)
 library(RColorBrewer)
+library(reshape)
+library(png)      
 ```
 
 ## Midterm Project_Airbnb
@@ -33,13 +36,13 @@ The major procedure can be summarized as below:
 1. Explorary Data Analysis and Visualization
 2. Multi-level linear model on price prediction
 3. Model Checking
-4. Reference and appendix 
+4. Appendix 
 
 Due to time limit, the project is only able to explore some aspects. The analysis has limitations on such as safety control, walk score and social interaction between landlords and guests. Feel free to contact me if you have any suggestions! 
 
 ## Data Overview
 
-After data cleaning, Boston has 3925 properties on the list and New York City has 33938 properties on the list. The total 36 variables contain property information, host information and hosting rules. 
+After data cleaning, Boston has 3925 properties on the list and New York City has 33938 properties on the list. The total 36 variables contain property information, host information and hosting policies. 
 
 For the outcome variable, I define the price by creating new variable, the price per person, which equals sum of price and cleaning fee divided by guests_included. $$Price\,per\,person = \dfrac{(Price + Cleaning\,fee) }{Guests\,included} $$ 
 
@@ -76,14 +79,29 @@ To find out people's experience with Airbnb in one city, we first need to know w
 ```{r echo=FALSE, warning=FALSE}
 #distribution of property type - BOS
 y1 <- count(bos_list, 'property_type')
-p1 <- ggplot(y1, aes(x=reorder(property_type,-freq),y = freq, fill = factor(property_type))) 
-p1 + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in Boston") + labs(x="Property Type",y="Count")
+p1 <- ggplot(y1, aes(x=reorder(property_type,freq),y = freq, fill = factor(property_type))) 
+p1 + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in Boston") + labs(x="Property Type",y="Count") + coord_flip()
 #distribution of property type- NYC
 y2 <- count(nyc_list, 'property_type')
-p2 <- ggplot(y2, aes(x=reorder(property_type,-freq),y = freq, fill = factor(property_type))) 
-p2 + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in NYC") + labs(x="Property Type",y="Count") 
+p2 <- ggplot(y2, aes(x=reorder(property_type,freq),y = freq, fill = factor(property_type))) 
+p2 + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Property Type Distribution in NYC") + labs(x="Property Type",y="Count") + coord_flip()
 ```
-From Figure 1 we can see, Boston has.... New York has...
+
+As we can see, apartment style buildings take the majority part of the properties in Boston and New York. There are variety here and there with small count relatively. Overall, I think properties provided in two cities are similar. Then, how about the price related to different properties? 
+
+```{r echo=FALSE}
+a1 <- aggregate( priceperperson ~ property_type, bos_list, mean )
+a1 <- as.data.frame(a1)
+names(a1) <- c("property_type","priceperperson_Bos")
+b1 <- aggregate( priceperperson ~ property_type, nyc_list, mean )
+b1 <- as.data.frame(b1)
+names(b1) <- c("property_type","priceperperson_Nyc")
+total <- merge(a1,b1,by="property_type")
+total <- melt(total, id="property_type")
+ggplot(total,aes(x=property_type,y=value)) +geom_line(aes(colour = variable, group = variable))+labs(x = "Property Type", y = "Price", title = "Average Price per Night per Person by Property Type") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+Isn't it interesting that different property style leads to very different price variety in two cities? I will treat property tyle as group effect in the price prediction later. 
 
 ```{r echo=FALSE}
 #distribution of room type - BOS
@@ -94,7 +112,23 @@ p <- ggplot(data=nyc_list, aes(x=factor(1), fill = factor(room_type))) + geom_ba
 pp2 <- p + coord_polar(theta = "y") + ggtitle("Room Type Distribution in NYC") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
 grid.arrange(pp1, pp2, ncol=2)
 ```
-From Figure ...
+
+From the charts, we can see that Boston has more Entire home/apt property percentage than NYC has, and less percentage of private rooms as NYC has. Again, what are the price distribution related to this? 
+
+```{r echo=FALSE}
+# distribution of price - BOS
+a2 <- aggregate( priceperperson ~ room_type, bos_list, mean )
+a2 <- as.data.frame(a2)
+# distribution of price - NYC
+b2 <- aggregate( priceperperson ~ room_type, nyc_list, mean )
+b2 <- as.data.frame(b2)
+total <- merge(a2,b2,by="room_type")
+names(total) <- c("Room Type","Average Price(Boston)","Average Price(New York)")
+kable(total, caption = "Average Price by Room Type")
+```
+
+
+From the table, though New York on average has higher price than Boston does, the change rates among different room types are very similar. 
 
 ```{r warning=FALSE, message=FALSE,echo=FALSE }
 #distribution of neighborhood - BOS
@@ -114,6 +148,14 @@ df <- (data.frame(
 ppp2 <- qmplot(y, x, data = df, colour = Type, size = I(0.1), darken = 0) + ggtitle("Property Distribution in NYC")
 grid.arrange(ppp1, ppp2, ncol=2)
 ```
+
+Some find-outs: 
+
+1. Different room types distributed in Boston is less blended as they are in New York. 
+
+2. New York is densely placed by airbnb properties almost all the places. While Boston is a little scatterd. 
+
+3. Downtown/Touristy areas are the densest part. 
 
 ```{r warning=FALSE, message=FALSE,echo=FALSE }
 #wordcloud - BOS
@@ -147,8 +189,11 @@ nycCorpus <- tm_map(nycCorpus, removeWords, "bedroom")
 nycCorpus <- tm_map(nycCorpus, removeWords, "room")
 wordcloud(nycCorpus, max.words = 100, random.order = FALSE,colors = brewer.pal(9,"Blues"))
 ```
-The most frequent words described in Boston are ..., which shows ....
-But in New York, ... are more frequently mentioned. 
+
+In Boston, area related words are most commonly mentioned, such as "near", "downtown","fenway" and "boston", which implies that hosts tend to use location convenience and popularity to attract guests. Descriptive words used are "cozy","spacious" and "luxury". In New York, room types are most commonly mentioned, like "private (room)", "studio" and "apartment", which implies hosts emphasize on the room types to attract guests. Descriptive words used are "cozy","spacious" and "sunny".
+
+Next, I wonder if hosts expand in differently ratios in both cities so I make two tables below.   at the first host year of the hosts 
+
 ```{r echo = FALSE}
 options(tz="America/New_York")
 # First Host Year Distribution in Boston
@@ -156,16 +201,22 @@ hostyearBOS <- year(bos_list$host_since)
 y1 <- table(hostyearBOS)
 y1 <- as.data.frame(y1)
 names(y1)[1] <- "Year"
-names(y1)[2] <- "Count"
-kable(y1,caption = "First Host Year Distribution in Boston by May 12 2017")
+names(y1)[2] <- "CountBOS"
 # First Host Year Distribution in New York
 hostyearNYC <- year(as.Date(nyc_list$host_since))
 y2 <- table(hostyearNYC)
 y2 <- as.data.frame(y2)
 names(y2)[1] <- "Year"
-names(y2)[2] <- "Count"
-kable(y2,caption = "First Host Year Distribution in New York by May 12 2017")
+names(y2)[2] <- "CountNYC"
+total <- merge(y1,y2,by="Year")
+total <- melt(total, id="Year")
+ggplot(total,aes(x=Year,y=value)) +geom_line(aes(colour = variable, group = variable))+labs(x = "Year", y = "Number of Properties", title = "First Host Year Distribution by May 12 2017") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
 ```
+
+We can see they both have similar trends of peek of increasing/decreasing, however, the slope varies. New York grows much faster than Boston does. 
+
+
+How about super-host influence? Super host is defined for hosts who have 5 star views, high response rate and large number of hosting experiences. In general, it's a title of the hosts who are commited to their hostings. I am curious to see its influence on the price, which also indirectly implying hosting experience influence on the price.
 
 ```{r echo=FALSE}
 # super-host percentage - BOS
@@ -174,7 +225,12 @@ a <- as.data.frame(a)
 a$Freq <- round(a$Freq/sum(a$Freq),2)
 names(a)[1] <- "Super Host?"
 names(a)[2] <- "Percentage"
-kable(a, caption = "Super Host Percentage in Boston")
+a4 <- aggregate( priceperperson ~ host_is_superhost, bos_list, mean )
+a4 <- as.data.frame(a4)
+names(a4)[1] <- "Super Host?"
+names(a4)[2] <- "Average Price"
+total <- merge(a,a4,by="Super Host?")
+kable(total, caption = "Super Host Percentage and Average Price in Boston")
 # super-host percentage - NYC
 b <- table(nyc_list$host_is_superhost)
 b <- as.data.frame(b) 
@@ -182,39 +238,58 @@ b[1, 1] = NA
 b$Freq <- round(b$Freq/sum(b$Freq),2)
 names(b)[1] <- "Super Host?"
 names(b)[2] <- "Percentage"
-kable(b, caption = "Super Host Percentage in New York")
+b4 <- aggregate( priceperperson ~ host_is_superhost, nyc_list, mean )
+b4 <- as.data.frame(b4)
+names(b4)[1] <- "Super Host?"
+names(b4)[2] <- "Average Price"
+total1 <- merge(b,b4,by="Super Host?")
+kable(total1, caption = "Super Host Percentage and Average Price in New York")
 ```
 
 
-```{r eval=FALSE}
-# distribution of price - BOS
-a1 <- aggregate( priceperperson ~ property_type, bos_list, mean )
-kable(a1, caption = "Average Price of Property Type in Boston")
-a2 <- aggregate( priceperperson ~ room_type, bos_list, mean )
-a2 <- as.data.frame(a2)
-a3 <- ggplot(a2,aes(room_type,priceperperson),fill = factor(room_type)) + geom_bar(stat = "identity") + ggtitle("Average Price of Room Type in Boston") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
-# distribution of price - NYC
-b1 <- aggregate( priceperperson ~ property_type, nyc_list, mean )
-kable(b1, caption = "Average Price of Property Type in New York")
-b2 <- aggregate( priceperperson ~ room_type, nyc_list, mean )
-b2 <- as.data.frame(b2)
-b3 <- ggplot(b2,aes(room_type,priceperperson),fill = factor(room_type)) + geom_bar(stat = "identity") + ggtitle("Average Price of Room Type in NYC") + labs(x="Room Type",y="Count") + theme(plot.title = element_text(size=12))
-grid.arrange(a3,b3, ncol=2)
-```
+Boston has higher rate of Super host than New York does. However, both cities don't have big difference of price in terms of super host or not, moreover, Super host leads to slightly higher price in Boston but lower price in New York. As a conclusion, I think price influence is decided by property information (room type, property type etc) but not host experience. 
 
-# Model and model visualization
+# Model and model checking
 
-I fit a multi-level model for each city. 
+I fit a multi-level model for each city. Here, I treat intercept as random 
 
-$$y_i^{price} = \mu + \gamma_{1}^{room type} + \delta^{neighbourhood}  + e_i$$
+$$y_i^{price} = \mu + \gamma_{ji} + \delta_{ki}  + e_i $$
+
+$$\gamma_{i} \sim N(0,\sigma_{\gamma}^2) $$
+$$\delta_{k} \sim N(0,\sigma_{\delta}^2) $$
+
+
 
 ```{r}
 # Multi-level model
 # Boston 
-m1 <- lmer(formula = price ~ 1 + (1 | room_type) + (1 | neighbourhood), data = bos_list_sum)
+m1 <- lmer(formula = priceperperson ~ 1 + (1 | room_type) + (1 | property_type) + (1 | neighbourhood), data = bos_list)
 # New York 
-m2 <- lmer(formula = price ~ 1 + (1 | room_type) + (1 | neighbourhood), data = nyc_list_sum)
+m2 <- lmer(formula = priceperperson ~ 1 + (1 | room_type) + (1 | property_type) + (1 | neighbourhood), data = nyc_list)
+summary(m1) # summary of Boston Model
+summary(m2) # summary of New York Model
+#m1
+sig2roomBOS = as.vector(VarCorr(m1)$room_type)
+sig2propertyBOS = as.vector(VarCorr(m1)$property_type)
+sig2neighborBOS = as.vector(VarCorr(m1)$neighbourhood )
+sig2roomBOS 
+sig2propertyBOS
+sig2neighborBOS
+#m2
+sig2roomNYC = as.vector(VarCorr(m2)$room_type)
+sig2propertyNYC = as.vector(VarCorr(m2)$property_type)
+sig2neighborNYC = as.vector(VarCorr(m2)$neighbourhood )
+sig2roomNYC 
+sig2propertyNYC
+sig2neighborNYC
 ```
+
+The first 1 is the fixed effect. The term (1 | variable) means that there is a random effect for each site and this effect is nested within the intercept (the whole model).
+
+The estimated variance of Room Type in Boston model is 6105, for property type in Boston is 809, and for neighborhood in Boston is 56.
+
+The estimated variance of Room Type in New York model is 11908, for property type in Boston is 2851, and for neighborhood in Boston is 801.
+
 
 ```{r echo=FALSE }
 # residual plot 
@@ -222,6 +297,113 @@ a1 <- plot(m1, main = "residual plot Boston")
 a2 <- plot(m2, main = "residual plot NYC")
 grid.arrange(a1, a2, ncol=2)
 ```
+ 
+There are splited patterns in the residual plots.
+ 
+```{r echo=FALSE,message=FALSE,warning=FALSE}
+means = sapply(split(bos_list$priceperperson, bos_list$room_type,bos_list$property_type,bos_list$neighbourhood), mean)
+room_typeFit = sapply(split(fitted(m1), bos_list$room_type), mean)
+a <- data.frame(mean = means, fitted = room_typeFit)
+kable(a, caption = "Room Type Fitted Value in Boston")
+means1 = sapply(split(bos_list$priceperperson, bos_list$property_type,bos_list$neighbourhood,bos_list$room_type), mean)
+property_typeFit = sapply(split(fitted(m1), bos_list$property_type), mean)
+b <- data.frame(mean = means1, fitted = property_typeFit)
+kable(b, caption = "Property Type Fitted Value in Boston")
+means = sapply(split(bos_list$priceperperson,bos_list$neighbourhood,bos_list$property_type,bos_list$room_type), mean)
+neighborFit <- sapply(split(fitted(m1), bos_list$neighbourhood), mean)
+neighborFit <- neighborFit[!sapply(neighborFit, is.nan)]
+c <- data.frame(mean = means, fitted = neighborFit)
+kable(c, caption = "Neighbourhood Fitted Value in Boston")
+# nyc: see appendix
+```
 
 
+```{r}
+summary(aov(priceperperson ~ Error(property_type), data=bos_list))
+summary(aov(priceperperson ~ Error(room_type), data=bos_list))
+summary(aov(priceperperson ~ Error(neighbourhood), data=bos_list))
+summary(aov(priceperperson ~ Error(property_type), data=nyc_list))
+summary(aov(priceperperson ~ Error(room_type), data=nyc_list))
+summary(aov(priceperperson ~ Error(neighbourhood), data=nyc_list))
+```
+# Discusstion and Limitation
+
+In this project I am glad to find out that host experience doesn't have much influence on price prediction, but location, room types and property types do. My model are created based on the listed properties on Boston and New York. In general, the Boston model fits better than the New York one. 
+
+Limitations: In this project, I didn't take safety reason into consideration, though it is usually one of the main concerns when guests are looking for places to stay. Behind the varibales of location, there are convenience, popularity and safety reasons too, which I will need to use other resources such as walk score and tourist map. I also haven't solved the NA values in the New York model, which I hope I will complete an in-depth analysis of multilevel regression interpretion when I have time. 
+
+
+# Appendix 
+
+```{r echo= FALSE}
+ggplot(bos_list, aes(x = neighbourhood, y = priceperperson)) +
+        geom_boxplot(colour = "#1F3552", fill = "orange",
+                     size = 0.5) +
+        scale_y_continuous(name = "Price",
+                              breaks = seq(0, 175, 25),
+                              limits=c(0, 175)) +
+        scale_x_discrete(name = "Neighbourhood") +
+        ggtitle("Boxplot of Price by Neighbourhood in Boston") +
+        theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(bos_list, aes(x = property_type, y = priceperperson)) +
+        geom_boxplot(colour = "#1F3552", fill = "blue",
+                     size = 0.5) +
+        scale_y_continuous(name = "Price",
+                              breaks = seq(0, 175, 25),
+                              limits=c(0, 175)) +
+        scale_x_discrete(name = "Property Type") +
+        ggtitle("Boxplot of Price by Property Type in Boston") +
+        theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(bos_list, aes(x = room_type, y = priceperperson)) +
+        geom_boxplot(colour = "#1F3552", fill = "red",
+                     size = 0.5) +
+        scale_y_continuous(name = "Price",
+                              breaks = seq(0, 175, 25),
+                              limits=c(0, 175)) +
+        scale_x_discrete(name = "Room Type") +
+        ggtitle("Boxplot of Price by Room Type in Boston") +
+        theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#nyc
+ggplot(nyc_list, aes(x = neighbourhood, y = priceperperson)) +
+        geom_boxplot(colour = "#1F3552", fill = "orange",
+                     size = 0.5) +
+        scale_y_continuous(name = "Price",
+                              breaks = seq(0, 175, 25),
+                              limits=c(0, 175)) +
+        scale_x_discrete(name = "Neighbourhood") +
+        ggtitle("Boxplot of Price by Neighbourhood in New York") +
+        theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(nyc_list, aes(x = property_type, y = priceperperson)) +
+        geom_boxplot(colour = "#1F3552", fill = "blue",
+                     size = 0.5) +
+        scale_y_continuous(name = "Price",
+                              breaks = seq(0, 175, 25),
+                              limits=c(0, 175)) +
+        scale_x_discrete(name = "Property Type") +
+        ggtitle("Boxplot of Price by Property Type in New York") +
+        theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggplot(nyc_list, aes(x = room_type, y = priceperperson)) +
+        geom_boxplot(colour = "#1F3552", fill = "red",
+                     size = 0.5) +
+        scale_y_continuous(name = "Price",
+                              breaks = seq(0, 175, 25),
+                              limits=c(0, 175)) +
+        scale_x_discrete(name = "Room Type") +
+        ggtitle("Boxplot of Price by Room Type in New York") +
+        theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#nyc fitted value
+#means = sapply(split(nyc_list$priceperperson, nyc_list$room_type,nyc_list$property_type,nyc_list$neighbourhood), mean)
+#room_typeFit = sapply(split(fitted(m1), nyc_list$room_type), mean)
+#data.frame(mean = means, fitted = room_typeFit)
+#means = sapply(split(nyc_list$priceperperson, nyc_list$property_type,nyc_list$neighbourhood,nyc_list$room_type), mean)
+#property_typeFit = sapply(split(fitted(m1), nyc_list$property_type), mean)
+#data.frame(mean = means, fitted = property_typeFit)
+#means = sapply(split(nyc_list$priceperperson,nyc_list$neighbourhood,nyc_list$property_type,nyc_list$room_type), mean)
+#neighborFit <- sapply(split(fitted(m1), nyc_list$neighbourhood), mean)
+#data.frame(mean = means, fitted = neighborFit)
+```
 
